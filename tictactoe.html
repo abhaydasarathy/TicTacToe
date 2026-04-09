@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Tac-Toe — Minimax AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3d;
+    --accent: #7c3aed;
+    --accent2: #06b6d4;
+    --x-color: #f43f5e;
+    --o-color: #06b6d4;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --win: #10b981;
+    --draw: #f59e0b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-image: radial-gradient(ellipse at 20% 20%, #1a0a2e 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, #0a1a2e 0%, transparent 50%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--x-color), var(--accent), var(--o-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+  }
+
+  header p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 220px;
+    gap: 20px;
+    width: 100%;
+    max-width: 860px;
+    align-items: start;
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── MODE SELECTOR ── */
+  .mode-btn {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  .mode-btn.active {
+    background: linear-gradient(135deg, #1a0a3e, #0a1a3e);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .mode-btn .icon { font-size: 1rem; }
+
+  /* ── SCOREBOARD ── */
+  .score-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .score-box {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px 6px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .score-box .score-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .score-box .score-num {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .score-box.x-box .score-label { color: var(--x-color); }
+  .score-box.x-box .score-num   { color: var(--x-color); }
+  .score-box.o-box .score-label { color: var(--o-color); }
+  .score-box.o-box .score-num   { color: var(--o-color); }
+  .score-box.d-box .score-label { color: var(--draw); }
+  .score-box.d-box .score-num   { color: var(--draw); }
+
+  /* ── CENTER AREA ── */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+    text-align: center;
+    width: 100%;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s;
+  }
+
+  .status-bar.x-turn  { border-color: var(--x-color); color: var(--x-color); }
+  .status-bar.o-turn  { border-color: var(--o-color); color: var(--o-color); }
+  .status-bar.x-win   { border-color: var(--win); color: var(--win); background: #0a2018; }
+  .status-bar.o-win   { border-color: var(--win); color: var(--win); background: #0a2018; }
+  .status-bar.draw    { border-color: var(--draw); color: var(--draw); background: #1a1200; }
+
+  /* ── BOARD ── */
+  .board-wrap {
+    position: relative;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+
+  .cell {
+    width: 100px;
+    height: 100px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.8rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    user-select: none;
+  }
+
+  .cell:hover:not(.taken) {
+    border-color: var(--accent);
+    background: #1c1c35;
+    transform: scale(1.04);
+  }
+
+  .cell.taken { cursor: default; }
+
+  .cell.x { color: var(--x-color); }
+  .cell.o { color: var(--o-color); }
+
+  .cell.win-cell {
+    background: #0d2b1d;
+    border-color: var(--win);
+    color: var(--win) !important;
+    animation: pulse-win 0.6s ease;
+  }
+
+  @keyframes pulse-win {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  .cell.pop {
+    animation: pop-in 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  @keyframes pop-in {
+    from { transform: scale(0.5); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  /* ── AI THINKING SCORES (shown on cells) ── */
+  .cell-score {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .show-scores .cell-score { opacity: 1; }
+
+  /* ── BUTTONS ── */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #4f46e5);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  .btn-ghost {
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+
+  .btn-ghost:hover { border-color: var(--accent2); color: var(--text); }
+
+  /* ── TOGGLE ── */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .toggle-row:last-child { border-bottom: none; margin-bottom: 0; }
+
+  .toggle {
+    width: 36px;
+    height: 20px;
+    background: var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    border: none;
+    flex-shrink: 0;
+  }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: left 0.2s;
+  }
+
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { left: 19px; }
+
+  /* ── AI LOG ── */
+  .ai-log {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    min-height: 80px;
+    max-height: 160px;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+
+  .ai-log .log-line { margin-bottom: 2px; }
+  .ai-log .log-line span { color: var(--accent2); }
+  .ai-log .log-best { color: var(--win); }
+
+  /* ── MOVE HISTORY ── */
+  .move-list {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+  }
+
+  .move-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .move-entry:last-child { border-bottom: none; }
+  .move-entry .mv-player { font-weight: 700; }
+  .move-entry .mv-player.x { color: var(--x-color); }
+  .move-entry .mv-player.o { color: var(--o-color); }
+
+  /* ── ALGO LABEL ── */
+  .algo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #1a0a3e;
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .algo-badge .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── DIFFICULTY ── */
+  .diff-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .diff-btn {
+    flex: 1;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .diff-btn.active { border-color: var(--accent); color: var(--text); background: #1a0a3e; }
+
+  @media (max-width: 700px) {
+    .main-layout { grid-template-columns: 1fr; }
+    .cell { width: 80px; height: 80px; font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tic-Tac-Toe</h1>
+  <p>Minimax Algorithm — Adversarial Search</p>
+</header>
+
+<div style="margin-bottom:16px">
+  <span class="algo-badge"><span class="dot"></span>MINIMAX AI ACTIVE</span>
+</div>
+
+<div class="main-layout">
+
+  <!-- LEFT PANEL -->
+  <div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">Game Mode</div>
+      <button class="mode-btn active" id="btn-pva" onclick="setMode('pva')">
+        <span class="icon">🤖</span> Player vs AI
+      </button>
+      <button class="mode-btn" id="btn-pvp" onclick="setMode('pvp')">
+        <span class="icon">👥</span> Player vs Player
+      </button>
+
+      <div class="panel-title" style="margin-top:14px">AI Difficulty</div>
+      <div class="diff-row">
+        <button class="diff-btn active" id="d-hard" onclick="setDiff('hard')">HARD</button>
+        <button class="diff-btn" id="d-easy" onclick="setDiff('easy')">EASY</button>
+      </div>
+
+      <div class="toggle-row">
+        <span>Show AI Scores</span>
+        <button class="toggle on" id="tog-scores" onclick="toggleScores()"></button>
+      </div>
+      <div class="toggle-row">
+        <span>AI Thinking Log</span>
+        <button class="toggle on" id="tog-log" onclick="toggleLog()"></button>
+      </div>
+    </div>
+
+    <div class="panel" id="score-panel">
+      <div class="panel-title">Score</div>
+      <div class="score-grid">
+        <div class="score-box x-box">
+          <div class="score-label">X</div>
+          <div class="score-num" id="score-x">0</div>
+        </div>
+        <div class="score-box d-box">
+          <div class="score-label">Draw</div>
+          <div class="score-num" id="score-d">0</div>
+        </div>
+        <div class="score-box o-box">
+          <div class="score-label">O</div>
+          <div class="score-num" id="score-o">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-col">
+    <div class="status-bar x-turn" id="status">X's Turn</div>
+
+    <div class="board-wrap">
+      <div class="board" id="board">
+        <!-- cells injected by JS -->
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="resetGame()">↺ New Game</button>
+      <button class="btn btn-ghost" onclick="resetScores()">Reset Scores</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">AI Thinking Log</div>
+      <div class="ai-log" id="ai-log">
+        <div class="log-line" style="color:#444">— Waiting for AI move —</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Move History</div>
+      <div class="move-list" id="move-list">
+        <div style="color:#444;font-family:'Space Mono',monospace;font-size:0.65rem">No moves yet</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── ALGORITHM EXPLANATION (for viva / poster) ── -->
+<div style="max-width:860px;width:100%;margin-top:24px">
+  <div class="panel">
+    <div class="panel-title">How It Works — Minimax Algorithm (Unit 3)</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:0.78rem;color:var(--text-muted);line-height:1.7">
+      <div>
+        <div style="color:var(--x-color);font-weight:700;margin-bottom:6px">State Space (Unit 1)</div>
+        S₀ → Initial empty board<br>
+        PLAYER(s) → Whose turn (X/O)<br>
+        ACTIONS(s) → Empty cells<br>
+        RESULT(s,a) → Board after move<br>
+        TERMINAL-TEST(s) → Win/Draw?<br>
+        UTILITY(s) → +10 / -10 / 0
+      </div>
+      <div>
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px">Minimax Rule (Unit 3)</div>
+        MAX player (X) → maximises score<br>
+        MIN player (O) → minimises score<br>
+        Leaf nodes → UTILITY value<br>
+        Back-up from children<br>
+        MAX node → picks max child<br>
+        MIN node → picks min child
+      </div>
+      <div>
+        <div style="color:var(--o-color);font-weight:700;margin-bottom:6px">Complexity</div>
+        Branching factor b = 9<br>
+        Max depth m = 9<br>
+        Time: O(b<sup>m</sup>) = O(9⁹)<br>
+        Space: O(bm)<br>
+        Complete: ✅ Yes<br>
+        Optimal: ✅ Yes (vs optimal)
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────
+let board       = Array(9).fill('');
+let gameMode    = 'pva';   // 'pva' | 'pvp'
+let difficulty  = 'hard';  // 'hard' | 'easy'
+let currentPlayer = 'X';
+let gameOver    = false;
+let showScores  = true;
+let showLog     = true;
+let scores      = { X: 0, O: 0, D: 0 };
+let moveHistory = [];
+let cellScores  = Array(9).fill(null);
+
+const WIN_LINES = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+// ── INIT BOARD ─────────────────────────────────────
+function initBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    cell.innerHTML = `<span class="cell-score" id="cs-${i}"></span>`;
+    cell.addEventListener('click', () => handleClick(i));
+    boardEl.appendChild(cell);
+  }
+}
+
+// ── CLICK HANDLER ──────────────────────────────────
+function handleClick(idx) {
+  if (gameOver || board[idx]) return;
+  if (gameMode === 'pva' && currentPlayer === 'O') return;
+
+  makeMove(idx, currentPlayer);
+
+  if (!gameOver && gameMode === 'pva') {
+    setTimeout(aiMove, 300);
+  }
+}
+
+function makeMove(idx, player) {
+  board[idx] = player;
+  const cell = document.querySelector(`.cell[data-idx="${idx}"]`);
+  cell.textContent = player;
+  cell.classList.add(player.toLowerCase(), 'taken', 'pop');
+
+  // Restore score label after pop
+  const scoreSpan = document.createElement('span');
+  scoreSpan.className = 'cell-score';
+  scoreSpan.id = `cs-${idx}`;
+  cell.appendChild(scoreSpan);
+
+  // Log move
+  moveHistory.push({ player, idx, move: moveHistory.length + 1 });
+  updateMoveList();
+
+  const winner = checkWinner(board);
+  if (winner) {
+    endGame(winner);
+  } else if (board.every(c => c)) {
+    endGame('D');
+  } else {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+    updateStatus();
+    clearCellScores();
+  }
+}
+
+// ── AI ─────────────────────────────────────────────
+function aiMove() {
+  if (gameOver) return;
+  clearLog();
+
+  let bestIdx;
+  if (difficulty === 'easy') {
+    // 40% random, 60% minimax
+    if (Math.random() < 0.4) {
+      const empty = board.map((v,i) => v ? null : i).filter(v => v !== null);
+      bestIdx = empty[Math.floor(Math.random() * empty.length)];
+      addLog('⚡ Easy mode: random move', false);
+    } else {
+      bestIdx = getBestMove();
+    }
+  } else {
+    bestIdx = getBestMove();
+  }
+
+  makeMove(bestIdx, 'O');
+}
+
+function getBestMove() {
+  let bestScore = -Infinity;
+  let bestIdx   = -1;
+  const scores  = [];
+  addLog('🔍 Evaluating all empty cells:', false);
+
+  for (let i = 0; i < 9; i++) {
+    if (board[i]) continue;
+    board[i] = 'O';
+    const s = minimax(board, 0, false, -Infinity, Infinity);
+    board[i] = '';
+    scores.push({ i, s });
+    cellScores[i] = s;
+    addLog(`  Cell ${i} → score: ${s >= 0 ? '+' : ''}${s}`, false);
+    if (s > bestScore) { bestScore = s; bestIdx = i; }
+  }
+
+  addLog(`✅ Best move: cell ${bestIdx} (score ${bestScore >= 0 ? '+' : ''}${bestScore})`, true);
+  updateCellScores();
+  return bestIdx;
+}
+
+function minimax(b, depth, isMaximising, alpha, beta) {
+  const winner = checkWinner(b);
+  if (winner === 'O') return 10 - depth;
+  if (winner === 'X') return depth - 10;
+  if (b.every(c => c)) return 0;
+
+  if (isMaximising) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      b[i] = 'O';
+      best = Math.max(best, minimax(b, depth + 1, false, alpha, beta));
+      b[i] = '';
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break; // Alpha-Beta Pruning
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      b[i] = 'X';
+      best = Math.min(best, minimax(b, depth + 1, true, alpha, beta));
+      b[i] = '';
+      beta = Math.min(beta, best);
+      if (beta <= alpha) break; // Alpha-Beta Pruning
+    }
+    return best;
+  }
+}
+
+// ── WIN CHECK ──────────────────────────────────────
+function checkWinner(b) {
+  for (const [a, c, d] of WIN_LINES) {
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+  }
+  return null;
+}
+
+function getWinLine(b) {
+  for (const line of WIN_LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return line;
+  }
+  return null;
+}
+
+// ── END GAME ───────────────────────────────────────
+function endGame(result) {
+  gameOver = true;
+  const statusEl = document.getElementById('status');
+
+  if (result === 'D') {
+    statusEl.textContent = "It's a Draw!";
+    statusEl.className = 'status-bar draw';
+    scores.D++;
+    document.getElementById('score-d').textContent = scores.D;
+  } else {
+    const line = getWinLine(board);
+    line.forEach(idx => {
+      document.querySelector(`.cell[data-idx="${idx}"]`).classList.add('win-cell');
+    });
+    statusEl.textContent = `${result} Wins! 🎉`;
+    statusEl.className = `status-bar ${result.toLowerCase()}-win`;
+    scores[result]++;
+    document.getElementById(`score-${result.toLowerCase()}`).textContent = scores[result];
+    addLog(`🏆 ${result} wins!`, true);
+  }
+}
+
+// ── STATUS ─────────────────────────────────────────
+function updateStatus() {
+  const el = document.getElementById('status');
+  if (gameMode === 'pva') {
+    el.textContent = currentPlayer === 'X' ? "Your Turn (X)" : "AI Thinking...";
+  } else {
+    el.textContent = `${currentPlayer}'s Turn`;
+  }
+  el.className = `status-bar ${currentPlayer.toLowerCase()}-turn`;
+}
+
+// ── RESET ──────────────────────────────────────────
+function resetGame() {
+  board = Array(9).fill('');
+  cellScores = Array(9).fill(null);
+  currentPlayer = 'X';
+  gameOver = false;
+  moveHistory = [];
+  initBoard();
+  clearLog();
+  document.getElementById('move-list').innerHTML =
+    `<div style="color:#444;font-family:'Space Mono',monospace;font-size:0.65rem">No moves yet</div>`;
+  updateStatus();
+}
+
+function resetScores() {
+  scores = { X: 0, O: 0, D: 0 };
+  ['x','o','d'].forEach(k =>
+    document.getElementById(`score-${k}`).textContent = 0
+  );
+}
+
+// ── MODE / DIFF ─────────────────────────────────────
+function setMode(m) {
+  gameMode = m;
+  document.getElementById('btn-pva').classList.toggle('active', m === 'pva');
+  document.getElementById('btn-pvp').classList.toggle('active', m === 'pvp');
+  resetGame();
+}
+
+function setDiff(d) {
+  difficulty = d;
+  document.getElementById('d-hard').classList.toggle('active', d === 'hard');
+  document.getElementById('d-easy').classList.toggle('active', d === 'easy');
+  resetGame();
+}
+
+// ── TOGGLES ────────────────────────────────────────
+function toggleScores() {
+  showScores = !showScores;
+  document.getElementById('tog-scores').classList.toggle('on', showScores);
+  document.getElementById('board').classList.toggle('show-scores', showScores);
+}
+
+function toggleLog() {
+  showLog = !showLog;
+  document.getElementById('tog-log').classList.toggle('on', showLog);
+  document.getElementById('ai-log').style.display = showLog ? '' : 'none';
+}
+
+// ── CELL SCORES ────────────────────────────────────
+function updateCellScores() {
+  for (let i = 0; i < 9; i++) {
+    const el = document.getElementById(`cs-${i}`);
+    if (el && cellScores[i] !== null && !board[i]) {
+      el.textContent = cellScores[i] >= 0 ? `+${cellScores[i]}` : `${cellScores[i]}`;
+      el.style.color = cellScores[i] > 0 ? 'var(--x-color)' :
+                       cellScores[i] < 0 ? 'var(--win)' : 'var(--text-muted)';
+    }
+  }
+  if (showScores) document.getElementById('board').classList.add('show-scores');
+}
+
+function clearCellScores() {
+  cellScores = Array(9).fill(null);
+  for (let i = 0; i < 9; i++) {
+    const el = document.getElementById(`cs-${i}`);
+    if (el) el.textContent = '';
+  }
+}
+
+// ── LOG ────────────────────────────────────────────
+function addLog(msg, isBest) {
+  const log = document.getElementById('ai-log');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (isBest ? ' log-best' : '');
+  line.innerHTML = msg.replace(/(\+?\-?\d+)/g, '<span>$1</span>');
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('ai-log').innerHTML = '';
+}
+
+// ── MOVE LIST ──────────────────────────────────────
+function updateMoveList() {
+  const ml = document.getElementById('move-list');
+  ml.innerHTML = '';
+  [...moveHistory].reverse().forEach(({ player, idx, move }) => {
+    const row = document.createElement('div');
+    row.className = 'move-entry';
+    const r = Math.floor(idx / 3) + 1;
+    const c = (idx % 3) + 1;
+    row.innerHTML = `
+      <span class="mv-player ${player.toLowerCase()}">${player}</span>
+      <span>Move #${move}</span>
+      <span>Row ${r}, Col ${c}</span>
+    `;
+    ml.appendChild(row);
+  });
+}
+
+// ── BOOT ───────────────────────────────────────────
+initBoard();
+updateStatus();
+document.getElementById('board').classList.add('show-scores');
+</script>
+</body>
+</html>
