@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Tac-Toe — Minimax AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════════ */
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-std:    cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 0.14s; --t-mid: 0.22s; --t-slow: 0.38s;
+}
+[data-theme="dark"] {
+  --bg:          #0E0E0F;
+  --surface:     #1A1A1C;
+  --surface-2:   #222225;
+  --surface-3:   #2A2A2E;
+  --border:      rgba(255,255,255,0.06);
+  --border-2:    rgba(255,255,255,0.11);
+  --border-3:    rgba(255,255,255,0.18);
+  --text:        #F0EEE8;
+  --text-2:      #8A8880;
+  --text-3:      #504E4A;
+  --x-hue:       #E8674A;
+  --x-glow:      rgba(232,103,74,0.25);
+  --x-subtle:    rgba(232,103,74,0.08);
+  --o-hue:       #5B9CF6;
+  --o-glow:      rgba(91,156,246,0.25);
+  --o-subtle:    rgba(91,156,246,0.08);
+  --win-color:   #4ADE80;
+  --win-glow:    rgba(74,222,128,0.2);
+  --win-subtle:  rgba(74,222,128,0.08);
+  --draw-color:  #FBBF24;
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg:   0 20px 60px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-board:0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+  --tree-line:   rgba(255,255,255,0.12);
+  --tree-best-line: rgba(74,222,128,0.5);
+}
+[data-theme="light"] {
+  --bg:          #F5F3EF;
+  --surface:     #FFFFFF;
+  --surface-2:   #F8F6F2;
+  --surface-3:   #EFECE6;
+  --border:      rgba(0,0,0,0.07);
+  --border-2:    rgba(0,0,0,0.11);
+  --border-3:    rgba(0,0,0,0.18);
+  --text:        #1C1A17;
+  --text-2:      #6B6860;
+  --text-3:      #B0ADA6;
+  --x-hue:       #C94F30;
+  --x-glow:      rgba(201,79,48,0.2);
+  --x-subtle:    rgba(201,79,48,0.07);
+  --o-hue:       #2563EB;
+  --o-glow:      rgba(37,99,235,0.2);
+  --o-subtle:    rgba(37,99,235,0.07);
+  --win-color:   #16A34A;
+  --win-glow:    rgba(22,163,74,0.18);
+  --win-subtle:  rgba(22,163,74,0.08);
+  --draw-color:  #D97706;
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.07);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-lg:   0 20px 60px rgba(0,0,0,0.14), 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-board:0 8px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+  --tree-line:   rgba(0,0,0,0.15);
+  --tree-best-line: rgba(22,163,74,0.5);
+}
+
+/* ══════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { height: 100%; }
+
+/*
+  FIX 1 — LAYOUT: body is a simple centered column.
+  The sidebar is position:fixed and floats on top.
+  Nothing inside body affects the centering of .app.
+*/
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px 40px;
+  transition: background var(--t-slow) var(--ease-std), color var(--t-slow) var(--ease-std);
+  overflow-x: hidden;
+}
+body::before, body::after {
+  content: ''; position: fixed; border-radius: 50%;
+  pointer-events: none; z-index: 0; transition: all var(--t-slow);
+}
+body::before {
+  width: 500px; height: 500px; top: -100px; left: -100px;
+  background: var(--x-glow); filter: blur(100px); opacity: 0.5;
+}
+body::after {
+  width: 500px; height: 500px; bottom: -100px; right: -100px;
+  background: var(--o-glow); filter: blur(100px); opacity: 0.5;
+}
+
+/* ══════════════════════════════════════════════════
+   GAME COLUMN — always perfectly centered
+══════════════════════════════════════════════════ */
+.app {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ══════════════════════════════════════════════════
+   NAV
+══════════════════════════════════════════════════ */
+.nav {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+.nav-brand { display: flex; flex-direction: column; }
+.nav-title { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
+.nav-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-3); letter-spacing: 0.05em; margin-top: 1px; }
+.nav-right { display: flex; gap: 6px; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-2);
+  background: var(--surface); color: var(--text-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--t-fast) var(--ease-std); box-shadow: var(--shadow-sm);
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-3); }
+.icon-btn:active { transform: scale(0.93); }
+.icon-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn.tree-active { background: var(--o-subtle); border-color: var(--o-hue); color: var(--o-hue); }
+
+/* ══════════════════════════════════════════════════
+   SCORE BAR
+══════════════════════════════════════════════════ */
+.score-bar {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 12px 16px;
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px;
+  align-items: center; box-shadow: var(--shadow-sm);
+}
+.score-player { display: flex; flex-direction: column; gap: 2px; }
+.score-player:last-child { text-align: right; align-items: flex-end; }
+.score-who { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.score-name { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.score-name.x { color: var(--x-hue); } .score-name.o { color: var(--o-hue); }
+.score-num { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 500; line-height: 1; transition: transform 0.2s var(--ease-spring); }
+.score-num.x { color: var(--x-hue); } .score-num.o { color: var(--o-hue); }
+.score-num.bump { animation: score-bump 0.35s var(--ease-spring); }
+@keyframes score-bump { 0% { transform: scale(1); } 50% { transform: scale(1.4); } 100% { transform: scale(1); } }
+.score-divider { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.score-divider-num { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 500; color: var(--draw-color); }
+.score-divider-label { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.score-player.active .score-num { filter: drop-shadow(0 0 8px currentColor); }
+
+/* ══════════════════════════════════════════════════
+   STATUS PILL
+══════════════════════════════════════════════════ */
+.status-wrap { width: 100%; display: flex; justify-content: center; min-height: 38px; align-items: center; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px;
+  border-radius: 999px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--text-2);
+  box-shadow: var(--shadow-sm); transition: all var(--t-mid) var(--ease-out);
+}
+.status-pill.x-turn { background: var(--x-subtle); border-color: var(--x-hue); color: var(--x-hue); box-shadow: 0 0 16px var(--x-glow), var(--shadow-sm); }
+.status-pill.o-turn { background: var(--o-subtle); border-color: var(--o-hue); color: var(--o-hue); box-shadow: 0 0 16px var(--o-glow), var(--shadow-sm); }
+.status-pill.win-state { background: var(--win-subtle); border-color: var(--win-color); color: var(--win-color); box-shadow: 0 0 20px var(--win-glow), var(--shadow-sm); }
+.status-pill.draw-state { background: rgba(251,191,36,0.08); border-color: var(--draw-color); color: var(--draw-color); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; animation: pulse-status 1.6s ease infinite; }
+.status-pill.win-state .status-dot, .status-pill.draw-state .status-dot { animation: none; }
+@keyframes pulse-status { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.6); } }
+.ai-dots { display: flex; gap: 3px; align-items: center; }
+.ai-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--o-hue); animation: ai-bounce 0.9s ease infinite; }
+.ai-dots span:nth-child(2) { animation-delay: 0.15s; }
+.ai-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+/* ══════════════════════════════════════════════════
+   BOARD
+══════════════════════════════════════════════════ */
+.board-container { width: 100%; position: relative; }
+.board {
+  width: 100%; aspect-ratio: 1; background: var(--surface);
+  border: 1px solid var(--border-2); border-radius: 24px; padding: 14px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  box-shadow: var(--shadow-board);
+  transition: opacity var(--t-mid) var(--ease-std), transform var(--t-mid) var(--ease-std);
+}
+.board.ai-thinking { pointer-events: none; opacity: 0.8; }
+.board.game-ended  { pointer-events: none; }
+.cell {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  transition: background var(--t-fast) var(--ease-std), border-color var(--t-fast) var(--ease-std),
+              transform var(--t-fast) var(--ease-std), box-shadow var(--t-fast) var(--ease-std);
+  user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.cell:focus-visible { outline: 2px solid var(--o-hue); outline-offset: 2px; }
+.cell:not(.taken):not(.no-hover):hover { border-color: var(--border-3); background: var(--surface-3); transform: scale(1.03); }
+.cell:not(.taken):not(.no-hover):hover::after {
+  content: attr(data-preview); position: absolute;
+  font-family: 'Outfit', sans-serif; font-size: clamp(1.4rem, 5vw, 2.2rem);
+  font-weight: 700; opacity: 0.18; color: var(--text); pointer-events: none;
+}
+.cell:active:not(.taken) { transform: scale(0.94); }
+.cell.taken { cursor: default; }
+.cell-symbol {
+  font-family: 'Outfit', sans-serif; font-size: clamp(1.6rem, 6vw, 2.4rem); font-weight: 700;
+  opacity: 0; transform: scale(0.3) rotate(-20deg); pointer-events: none; line-height: 1;
+  transition: opacity var(--t-mid) var(--ease-spring), transform var(--t-mid) var(--ease-spring);
+}
+.cell-symbol.show { opacity: 1; transform: scale(1) rotate(0deg); }
+.cell.x .cell-symbol { color: var(--x-hue); }
+.cell.o .cell-symbol { color: var(--o-hue); }
+.cell.last-move:not(.win-cell) { border-color: var(--border-3); background: var(--surface-3); }
+.cell.win-cell {
+  background: var(--win-subtle); border-color: var(--win-color);
+  box-shadow: 0 0 14px var(--win-glow); animation: win-pop 0.5s var(--ease-spring);
+}
+.cell.win-cell .cell-symbol { color: var(--win-color) !important; filter: drop-shadow(0 0 6px var(--win-color)); }
+@keyframes win-pop { 0% { transform: scale(0.9); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+.cell-hint {
+  position: absolute; bottom: 5px; right: 7px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-3);
+  opacity: 0; pointer-events: none; transition: opacity var(--t-mid); z-index: 2;
+}
+.show-hints .cell-hint { opacity: 1; }
+.cell.taken .cell-hint { display: none; }
+.cell.best-move:not(.taken) { box-shadow: 0 0 0 2px var(--o-hue), 0 0 20px var(--o-glow); animation: best-pulse 1.2s ease infinite; }
+@keyframes best-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--o-hue), 0 0 20px var(--o-glow); }
+  50%       { box-shadow: 0 0 0 2px var(--o-hue), 0 0 30px var(--o-glow); }
+}
+
+/* ══════════════════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════════════════ */
+.controls { width: 100%; display: flex; gap: 8px; }
+.btn {
+  flex: 1; padding: 10px 14px; border-radius: 10px;
+  font-family: 'Outfit', sans-serif; font-size: 13.5px; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all var(--t-fast) var(--ease-std); position: relative; overflow: hidden;
+}
+.btn::after { content: ''; position: absolute; inset: 0; background: white; opacity: 0; transition: opacity var(--t-fast); }
+.btn:active::after { opacity: 0.06; }
+.btn-primary { background: var(--text); color: var(--bg); box-shadow: var(--shadow-sm); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); opacity: 0.9; }
+.btn-primary:active { transform: translateY(0); opacity: 1; }
+.btn-secondary { background: var(--surface); color: var(--text-2); border-color: var(--border-2); box-shadow: var(--shadow-sm); }
+.btn-secondary:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-3); }
+.btn-ghost { background: transparent; color: var(--text-2); border-color: var(--border); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+.btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════
+   SETTINGS PANEL
+══════════════════════════════════════════════════ */
+.settings-panel { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-sm); }
+.settings-trigger {
+  width: 100%; padding: 13px 16px; background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.settings-trigger:hover { background: var(--surface-2); color: var(--text); }
+.settings-label { display: flex; align-items: center; gap: 8px; }
+.settings-label svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.chevron-icon { width: 14px; height: 14px; fill: none; stroke: var(--text-3); stroke-width: 2; stroke-linecap: round; transition: transform var(--t-mid) var(--ease-std); }
+.chevron-icon.open { transform: rotate(180deg); }
+.settings-body { display: none; padding: 16px; border-top: 1px solid var(--border); flex-direction: column; gap: 16px; }
+.settings-body.open { display: flex; }
+.sgroup-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 7px; }
+.pill-row { display: flex; gap: 6px; }
+.seg-pill {
+  flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-2);
+  background: var(--surface-2); font-family: 'Outfit', sans-serif; font-size: 12.5px;
+  font-weight: 500; color: var(--text-2); cursor: pointer;
+  transition: all var(--t-fast) var(--ease-std); text-align: center;
+}
+.seg-pill:hover:not(.active) { border-color: var(--border-3); background: var(--surface-3); color: var(--text); }
+.seg-pill.active { background: var(--text); color: var(--bg); border-color: transparent; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.toggle-name { font-size: 13px; color: var(--text-2); }
+.toggle-sw {
+  width: 36px; height: 20px; border-radius: 999px; background: var(--surface-3);
+  border: 1px solid var(--border-2); cursor: pointer; position: relative;
+  transition: background var(--t-mid), border-color var(--t-mid); flex-shrink: 0;
+}
+.toggle-sw::after {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  background: var(--text-3); border-radius: 50%; top: 2px; left: 2px;
+  transition: left var(--t-mid) var(--ease-spring), background var(--t-mid);
+}
+.toggle-sw.on { background: var(--text); border-color: transparent; }
+.toggle-sw.on::after { left: 18px; background: var(--bg); }
+
+/* ══════════════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300; opacity: 0; pointer-events: none;
+  transition: opacity var(--t-mid) var(--ease-std); padding: 16px;
+}
+.modal-backdrop.show { opacity: 1; pointer-events: all; }
+.modal-box {
+  background: var(--surface); border: 1px solid var(--border-2); border-radius: 24px;
+  padding: 28px 24px 22px; max-width: 340px; width: 100%;
+  box-shadow: var(--shadow-lg); text-align: center;
+  transform: translateY(20px) scale(0.95); transition: transform var(--t-slow) var(--ease-spring);
+}
+.modal-backdrop.show .modal-box { transform: translateY(0) scale(1); }
+.modal-emoji { font-size: 2.8rem; line-height: 1; margin-bottom: 14px; display: block; }
+.modal-title { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
+.modal-title.x-win   { color: var(--x-hue); }
+.modal-title.o-win   { color: var(--o-hue); }
+.modal-title.win     { color: var(--win-color); }
+.modal-title.draw    { color: var(--draw-color); }
+.modal-sub { font-size: 14px; color: var(--text-2); margin-bottom: 22px; line-height: 1.6; }
+.modal-btns { display: flex; gap: 8px; }
+
+/* ══════════════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════════════ */
+.footer { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-3); letter-spacing: 0.06em; text-align: center; margin-top: 4px; }
+
+/* ══════════════════════════════════════════════════
+   FIX 1 — TREE SIDEBAR: position:fixed, floats over layout
+   Does NOT affect the centered game column at all.
+══════════════════════════════════════════════════ */
+.tree-sidebar {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  left: 24px;
+  bottom: 24px;
+  width: auto;
+  max-width: 1400px;
+  margin: 0 auto;
+  max-height: none;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 24px;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 0 100vw rgba(0,0,0,0.5); /* Massive shadow and backdrop */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 200;
+  /* hidden by default */
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(30px) scale(0.97);
+  transition: opacity var(--t-slow) var(--ease-out),
+              transform var(--t-slow) var(--ease-spring);
+}
+.tree-sidebar.visible {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0) scale(1);
+}
+
+/* Sidebar header */
+.tree-header {
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.tree-header-left { display: flex; flex-direction: column; gap: 2px; }
+.tree-header-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 7px;
+}
+.tree-header-title svg {
+  width: 13px; height: 13px; fill: none; stroke: var(--o-hue);
+  stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0;
+}
+.tree-header-sub {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-3); letter-spacing: 0.04em;
+}
+.tree-close-btn {
+  width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--border-2); background: var(--surface-2);
+  color: var(--text-3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--t-fast); flex-shrink: 0;
+}
+.tree-close-btn:hover { background: var(--surface-3); color: var(--text-2); }
+.tree-close-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* Stats bar */
+.tree-stats {
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  display: none; gap: 0; flex-shrink: 0; background: var(--surface-2);
+}
+.tree-stats.show { display: flex; }
+.tree-stat { flex: 1; display: flex; flex-direction: column; gap: 1px; align-items: center; }
+.tree-stat + .tree-stat { border-left: 1px solid var(--border); }
+.tree-stat-val { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
+.tree-stat-key { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+
+/* Legend */
+.tree-legend {
+  padding: 7px 14px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+.legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.legend-dot.best    { background: var(--win-color); }
+.legend-dot.good    { background: var(--o-hue); }
+.legend-dot.bad     { background: var(--x-hue); }
+.legend-dot.neutral { background: var(--text-3); }
+
+/* Scroll area */
+.tree-scroll {
+  overflow-y: auto; overflow-x: auto; flex: 1; padding: 12px;
+}
+.tree-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+.tree-scroll::-webkit-scrollbar-track { background: transparent; }
+.tree-scroll::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+
+/* Empty state */
+.tree-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 32px 16px; color: var(--text-3); text-align: center;
+}
+.tree-empty-icon { font-size: 28px; opacity: 0.5; }
+.tree-empty-text { font-size: 12px; line-height: 1.6; }
+
+/* ══════════════════════════════════════════════════
+   FIX 3 — REAL HIERARCHICAL TREE STYLES (ORG CHART)
+══════════════════════════════════════════════════ */
+.tree-root-list {
+  display: flex;
+  justify-content: center;
+  min-width: max-content;
+  padding: 10px;
+}
+
+.tree-child-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 24px 8px 0 8px; 
+}
+
+/* Horizontal line connecting siblings */
+.tree-child-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 1px;
+  background: var(--tree-line);
+}
+.tree-child-wrap:first-child::before {
+  left: 50%; width: 50%;
+}
+.tree-child-wrap:last-child::before {
+  left: 0; width: 50%;
+}
+.tree-child-wrap:first-child:last-child::before {
+  display: none;
+}
+
+/* Vertical line from horizontal connector down to the node */
+.tree-child-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 24px;
+  background: var(--tree-line);
+}
+
+.tree-children {
+  display: flex;
+  justify-content: center;
+  position: relative;
+  padding-top: 24px; 
+}
+
+/* Vertical line coming out of the bottom of parent */
+.tree-children::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 24px;
+  background: var(--tree-line);
+}
+
+/* Note: The super root shouldn't have a line coming into it from above */
+.tree-root-list > .tree-child-wrap {
+  padding-top: 0;
+}
+.tree-root-list > .tree-child-wrap::before,
+.tree-root-list > .tree-child-wrap::after {
+  display: none;
+}
+
+.tree-node-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  padding: 6px;
+  position: relative;
+  transition: transform 0.2s;
+  z-index: 1;
+}
+
+.tree-node-box:hover {
+  transform: scale(1.05);
+}
+
+/* Distinguish max/min nodes by background */
+.tree-node-box.max-node {
+  background: rgba(251, 191, 36, 0.15); 
+  border-color: rgba(251, 191, 36, 0.4);
+}
+.tree-node-box.min-node {
+  background: rgba(74, 222, 128, 0.15); 
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+/* Best path highlight */
+.tree-node-box.is-best {
+  box-shadow: 0 0 0 2px var(--x-hue), 0 0 15px var(--x-glow); 
+  border-color: var(--x-hue) !important; 
+}
+
+.node-mini-board {
+  width: 42px; height: 42px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  background: var(--border-3); border-radius: 4px; padding: 2px;
+}
+.node-mini-cell {
+  background: var(--surface); border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px; font-weight: 700; color: var(--text);
+}
+.node-mini-cell.x { color: var(--x-hue); }
+.node-mini-cell.o { color: var(--o-hue); }
+.node-mini-cell.hl { 
+  background: rgba(251,191,36,0.3); 
+}
+
+.node-score-box {
+  margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 600;
+  color: var(--text);
+  display: flex; flex-direction: column; align-items: center;
+}
+
+.tree-pruned-node {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+/* ══════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════ */
+@media (max-width: 780px) {
+  /* Sidebar becomes a full modal on small screens */
+  .tree-sidebar {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    border-radius: 20px;
+    transform: translateY(20px) scale(0.97);
+  }
+  .tree-sidebar.visible {
+    transform: translateY(0) scale(1);
+  }
+}
+@media (max-width: 400px) {
+  .app { gap: 10px; }
+  .board { padding: 10px; gap: 8px; border-radius: 18px; }
+  .cell { border-radius: 10px; }
+  .score-num { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<!-- GAME — perfectly centered, sidebar doesn't touch this -->
+<div class="app">
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="nav-title">Tic-Tac-Toe</div>
+      <div class="nav-sub">MINIMAX · ALPHA-BETA</div>
+    </div>
+    <div class="nav-right">
+      <button class="icon-btn" id="tree-toggle-btn" title="Toggle Minimax Tree" onclick="toggleTreeSidebar()">
+        <svg viewBox="0 0 24 24"><path d="M12 3v4M6 7h12M8 11v4M16 11v4M6 15h4M14 15h4M5 19h4M15 19h4"/></svg>
+      </button>
+      <button class="icon-btn" id="undo-btn" title="Undo last move" onclick="undoMove()">
+        <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      </button>
+      <button class="icon-btn" id="theme-btn" title="Toggle theme" onclick="toggleTheme()">
+        <svg id="theme-svg" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- SCORE BAR -->
+  <div class="score-bar">
+    <div class="score-player" id="player-x-info">
+      <div class="score-who">Player</div>
+      <div class="score-name x" id="x-name">X</div>
+      <div class="score-num x" id="score-x">0</div>
+    </div>
+    <div class="score-divider">
+      <div class="score-divider-num" id="score-d">0</div>
+      <div class="score-divider-label">Draw</div>
+    </div>
+    <div class="score-player" id="player-o-info">
+      <div class="score-who">AI</div>
+      <div class="score-name o" id="o-name">O</div>
+      <div class="score-num o" id="score-o">0</div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-wrap" role="status" aria-live="polite">
+    <div class="status-pill x-turn" id="status-pill">
+      <span class="status-dot"></span>
+      <span id="status-text">Your turn</span>
+    </div>
+  </div>
+
+  <!-- BOARD -->
+  <div class="board-container">
+    <div class="board" id="board" role="grid" aria-label="Tic-Tac-Toe board"></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <button class="btn btn-primary" onclick="confirmRestart()">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      New Game
+    </button>
+    <button class="btn btn-secondary" onclick="confirmResetScores()">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="settings-panel">
+    <button class="settings-trigger" onclick="toggleSettings()" id="settings-trigger" aria-expanded="false">
+      <span class="settings-label">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34L5.4 6.24A7 7 0 0 1 12 5a7 7 0 0 1 7 7"/><path d="M4.93 19.07A10 10 0 0 0 17.01 20.66L18.6 17.76A7 7 0 0 1 12 19a7 7 0 0 1-7-7"/></svg>
+        Settings
+      </span>
+      <svg class="chevron-icon" id="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="settings-body" id="settings-body">
+      <div>
+        <div class="sgroup-label">Game Mode</div>
+        <div class="pill-row">
+          <button class="seg-pill active" id="pill-pva" onclick="setMode('pva')">vs AI</button>
+          <button class="seg-pill" id="pill-pvp" onclick="setMode('pvp')">vs Player</button>
+        </div>
+      </div>
+      <div id="diff-section">
+        <div class="sgroup-label">AI Difficulty</div>
+        <div class="pill-row">
+          <button class="seg-pill active" id="pill-hard" onclick="setDiff('hard')">Hard</button>
+          <button class="seg-pill" id="pill-medium" onclick="setDiff('medium')">Medium</button>
+          <button class="seg-pill" id="pill-easy" onclick="setDiff('easy')">Easy</button>
+        </div>
+      </div>
+      <div id="side-section">
+        <div class="sgroup-label">Play as</div>
+        <div class="pill-row">
+          <button class="seg-pill active" id="pill-px" onclick="setPlayerSide('X')">X — First</button>
+          <button class="seg-pill" id="pill-po" onclick="setPlayerSide('O')">O — Second</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="toggle-row">
+          <span class="toggle-name">Show AI score hints</span>
+          <button class="toggle-sw on" id="sw-hints" onclick="toggleHints()"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-name">Highlight best AI move</span>
+          <button class="toggle-sw on" id="sw-bestmove" onclick="toggleBestMove()"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-name">Sound effects</span>
+          <button class="toggle-sw" id="sw-sound" onclick="toggleSound()"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">minimax algorithm · alpha-beta pruning · optimal play</div>
+
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════
+     TREE SIDEBAR — fixed floating panel
+══════════════════════════════════════════════ -->
+<aside class="tree-sidebar" id="tree-sidebar" aria-label="Minimax tree visualization">
+
+  <div class="tree-header">
+    <div class="tree-header-left">
+      <div class="tree-header-title">
+        <svg viewBox="0 0 24 24"><path d="M12 3v4M6 7h12M8 11v4M16 11v4M6 15h4M14 15h4M5 19h4M15 19h4"/></svg>
+        Minimax Tree
+      </div>
+      <div class="tree-header-sub" id="tree-header-sub">Waiting for AI move…</div>
+    </div>
+    <button class="tree-close-btn" onclick="toggleTreeSidebar()" title="Close">
+      <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="tree-stats" id="tree-stats">
+    <div class="tree-stat">
+      <div class="tree-stat-val" id="tstat-nodes">—</div>
+      <div class="tree-stat-key">Nodes</div>
+    </div>
+    <div class="tree-stat">
+      <div class="tree-stat-val" id="tstat-depth">—</div>
+      <div class="tree-stat-key">Depth</div>
+    </div>
+    <div class="tree-stat">
+      <div class="tree-stat-val" id="tstat-pruned">—</div>
+      <div class="tree-stat-key">Pruned</div>
+    </div>
+    <div class="tree-stat">
+      <div class="tree-stat-val" id="tstat-best">—</div>
+      <div class="tree-stat-key">Best</div>
+    </div>
+  </div>
+
+  <div class="tree-legend">
+    <div class="legend-item"><div class="legend-dot best"></div>Best</div>
+    <div class="legend-item"><div class="legend-dot good"></div>AI favors</div>
+    <div class="legend-item"><div class="legend-dot bad"></div>Human favors</div>
+    <div class="legend-item"><div class="legend-dot neutral"></div>Neutral</div>
+  </div>
+
+  <div class="tree-scroll" id="tree-scroll">
+    <div class="tree-empty" id="tree-empty">
+      <div class="tree-empty-icon">🌳</div>
+      <div class="tree-empty-text">The Minimax decision tree appears here when the AI calculates its move.</div>
+    </div>
+    <div class="tree-root-list" id="tree-root-list" style="display:none"></div>
+  </div>
+
+</aside>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="result-modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <span class="modal-emoji" id="m-emoji">🎉</span>
+    <div class="modal-title" id="m-title">You Win!</div>
+    <div class="modal-sub" id="m-sub">Nice one. Want to go again?</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" style="flex:0.7" onclick="closeResultModal()">Later</button>
+      <button class="btn btn-primary" onclick="closeResultModal(); startGame()">Play Again</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="restart-modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <span class="modal-emoji">🔄</span>
+    <div class="modal-title" style="font-size:18px">Start new game?</div>
+    <div class="modal-sub">Current game will be discarded.</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('restart-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('restart-modal'); startGame()">Start</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="reset-modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <span class="modal-emoji">🗑️</span>
+    <div class="modal-title" style="font-size:18px">Reset scores?</div>
+    <div class="modal-sub">All score history will be cleared.</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal('reset-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('reset-modal'); resetScores()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   AUDIO ENGINE
+═══════════════════════════════════════════════════ */
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq, dur, type = 'sine', vol = 0.12) {
+  if (!sfxOn) return;
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator(); const g = ac.createGain();
+    osc.connect(g); g.connect(ac.destination);
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+    osc.start(); osc.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+const SFX = {
+  clickX: () => beep(440, 0.07, 'triangle', 0.13),
+  clickO: () => beep(330, 0.07, 'triangle', 0.11),
+  win:    () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,0.18,'sine',0.12), i*110)); },
+  draw:   () => beep(220, 0.45, 'triangle', 0.08),
+  undo:   () => beep(392, 0.1, 'triangle', 0.09),
+};
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+let board         = Array(9).fill('');
+let history       = [];
+let gameMode      = 'pva';
+let difficulty    = 'hard';
+let playerSide    = 'X';
+let currentPlayer = 'X';
+let gameOver      = false;
+let lastMoveIdx   = -1;
+let showHints     = true;
+let showBestMove  = true;
+let sfxOn         = false;
+let settingsOpen  = false;
+let treeSidebarOpen = false;
+let scores = { X: 0, O: 0, D: 0 };
+
+/*
+  FIX 2 — MEDIUM DIFFICULTY: Only config values changed, NOT minimax().
+  Hard: full depth, 0% random → unbeatable
+  Medium: depth 2, 40% random → makes real mistakes
+  Easy: depth 1, 65% random → mostly random
+*/
+const DEPTH_LIMIT = { hard: Infinity, medium: 2, easy: 1 };
+const RAND_CHANCE = { hard: 0,        medium: 0.4, easy: 0.65 };
+
+const WIN_LINES = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+/* ═══════════════════════════════════════════════════
+   BOARD DOM
+═══════════════════════════════════════════════════ */
+function buildBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+  el.className = 'board show-hints';
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    cell.setAttribute('role', 'gridcell');
+    cell.setAttribute('tabindex', '0');
+    cell.setAttribute('aria-label', `Cell ${i+1}, empty`);
+    cell.innerHTML = `<span class="cell-symbol" id="sym-${i}"></span><span class="cell-hint" id="hint-${i}"></span>`;
+    cell.addEventListener('click', () => onCellClick(i));
+    cell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') onCellClick(i); });
+    el.appendChild(cell);
+  }
+  syncHints();
+}
+
+function refreshBoard() {
+  clearAllWinCells();
+  document.getElementById('board').classList.remove('ai-thinking', 'game-ended');
+  for (let i = 0; i < 9; i++) {
+    const cell = document.querySelector(`.cell[data-idx="${i}"]`);
+    const sym  = document.getElementById(`sym-${i}`);
+    cell.className = 'cell';
+    cell.setAttribute('aria-label', `Cell ${i+1}, empty`);
+    sym.className = 'cell-symbol'; sym.textContent = '';
+    document.getElementById(`hint-${i}`).textContent = '';
+    if (board[i]) {
+      cell.classList.add('taken', board[i].toLowerCase());
+      sym.classList.add('show'); sym.textContent = board[i];
+      cell.setAttribute('aria-label', `Cell ${i+1}, ${board[i]}`);
+    }
+  }
+  if (lastMoveIdx >= 0 && board[lastMoveIdx]) {
+    document.querySelector(`.cell[data-idx="${lastMoveIdx}"]`).classList.add('last-move');
+  }
+  setPreviewChars();
+}
+
+function setPreviewChars() {
+  const preview = currentPlayer === playerSide ? currentPlayer : '';
+  document.querySelectorAll('.cell:not(.taken)').forEach(c => { c.dataset.preview = preview; });
+}
+
+/* ═══════════════════════════════════════════════════
+   GAME FLOW
+═══════════════════════════════════════════════════ */
+function startGame() {
+  board = Array(9).fill(''); history = []; lastMoveIdx = -1;
+  gameOver = false; currentPlayer = 'X';
+  buildBoard(); setStatus(); updateUndoBtn(); updateScoreActiveState(); updateLabels();
+  resetTreePanel();
+  if (gameMode === 'pva' && playerSide === 'O') { setAiStatus(); setTimeout(doAiMove, 450); }
+  else { setTimeout(updateEngineAnalysis, 50); }
+}
+
+function onCellClick(idx) {
+  if (gameOver || board[idx]) return;
+  const isHumanTurn = gameMode === 'pvp' || currentPlayer === playerSide;
+  if (!isHumanTurn) return;
+  (currentPlayer === 'X' ? SFX.clickX : SFX.clickO)();
+  placeMove(idx, currentPlayer);
+  if (!gameOver) {
+    if (gameMode === 'pva') {
+      setAiStatus();
+      document.getElementById('board').classList.add('ai-thinking');
+      clearHintDisplay();
+      setTimeout(doAiMove, 380);
+    } else if (gameMode === 'pvp') {
+      setTimeout(updateEngineAnalysis, 50);
+    }
+  }
+}
+
+function placeMove(idx, player) {
+  history.push({ board: [...board], currentPlayer, lastMoveIdx });
+  board[idx] = player; lastMoveIdx = idx;
+  const cell = document.querySelector(`.cell[data-idx="${idx}"]`);
+  const sym  = document.getElementById(`sym-${idx}`);
+  document.querySelectorAll('.cell.last-move').forEach(c => c.classList.remove('last-move'));
+  cell.classList.add('taken', player.toLowerCase(), 'last-move');
+  sym.textContent = player; sym.className = 'cell-symbol show';
+  cell.setAttribute('aria-label', `Cell ${idx+1}, ${player}`);
+  cell.dataset.preview = '';
+  const winner = checkWinner(board);
+  if (winner) { endGame(winner); }
+  else if (board.every(Boolean)) { endGame('D'); }
+  else {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+    setStatus(); setPreviewChars(); updateUndoBtn(); updateScoreActiveState();
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   UNDO
+═══════════════════════════════════════════════════ */
+function undoMove() {
+  if (!history.length || gameOver) return;
+  const stepsBack = (gameMode === 'pva' && history.length >= 2) ? 2 : 1;
+  for (let s = 0; s < stepsBack; s++) {
+    if (history.length) {
+      const snap = history.pop();
+      board = snap.board; currentPlayer = snap.currentPlayer; lastMoveIdx = snap.lastMoveIdx;
+    }
+  }
+  SFX.undo(); gameOver = false;
+  refreshBoard(); setStatus(); updateUndoBtn(); updateScoreActiveState();
+  clearHintDisplay(); resetTreePanel();
+  if (gameMode === 'pvp' || (gameMode === 'pva' && currentPlayer === playerSide)) {
+    setTimeout(updateEngineAnalysis, 50);
+  } else if (gameMode === 'pva') {
+    setAiStatus();
+    document.getElementById('board').classList.add('ai-thinking');
+    setTimeout(doAiMove, 380);
+  }
+}
+
+function updateUndoBtn() {
+  document.getElementById('undo-btn').disabled = history.length === 0 || gameOver;
+}
+
+/* ═══════════════════════════════════════════════════
+   ENGINE ANALYSIS (PVP)
+═══════════════════════════════════════════════════ */
+function updateEngineAnalysis() {
+  if (gameOver) return;
+  const evalPlayer = currentPlayer;
+  const oppPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  const { bestIdx, scoreMap, treeData, stats } = getBestMove(evalPlayer, oppPlayer);
+  
+  if (showHints) renderHints(scoreMap);
+  clearBestHighlight();
+  if (showBestMove) highlightBestCell(bestIdx);
+  renderTree(treeData, stats, evalPlayer);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MINIMAX — ORIGINAL ALGORITHM — DO NOT MODIFY ANYTHING INSIDE THIS BLOCK
+   ═══════════════════════════════════════════════════════════════════════ */
+function minimax(b, depth, isMaximising, alpha, beta, aiP, humanP, limit) {
+  const winner = checkWinner(b);
+  if (winner === aiP)    return 10 - depth;
+  if (winner === humanP) return depth - 10;
+  if (b.every(Boolean))  return 0;
+  if (depth >= limit)    return 0;
+
+  if (isMaximising) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      b[i] = aiP;
+      best = Math.max(best, minimax(b, depth + 1, false, alpha, beta, aiP, humanP, limit));
+      b[i] = '';
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break; // ← Alpha-Beta Pruning
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      b[i] = humanP;
+      best = Math.min(best, minimax(b, depth + 1, true, alpha, beta, aiP, humanP, limit));
+      b[i] = '';
+      beta = Math.min(beta, best);
+      if (beta <= alpha) break; // ← Alpha-Beta Pruning
+    }
+    return best;
+  }
+}
+/* ═══════════════════════════════════════════════════════════════════════
+   END OF ORIGINAL MINIMAX
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════
+   MINIMAX TRACE WRAPPER — visualization only, separate pass.
+   Does NOT affect move selection; only builds a node tree object.
+═══════════════════════════════════════════════════ */
+const VIZ_DEPTH_CAP = 2;
+
+function minimaxTrace(b, depth, isMaximising, alpha, beta, aiP, humanP, limit, nodeRef) {
+  const winner = checkWinner(b);
+  if (winner === aiP)    { nodeRef.score = 10 - depth; nodeRef.terminal = 'win';  return 10 - depth; }
+  if (winner === humanP) { nodeRef.score = depth - 10; nodeRef.terminal = 'lose'; return depth - 10; }
+  if (b.every(Boolean))  { nodeRef.score = 0;           nodeRef.terminal = 'draw'; return 0; }
+  if (depth >= limit)    { nodeRef.score = 0;           nodeRef.terminal = 'cap';  return 0; }
+
+  nodeRef.children = [];
+
+  if (isMaximising) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      const child = { move: i, player: aiP, board: null, score: null, terminal: null, pruned: false, children: null };
+      b[i] = aiP;
+      child.board = [...b];
+      if (depth < VIZ_DEPTH_CAP) {
+        minimaxTrace(b, depth + 1, false, alpha, beta, aiP, humanP, limit, child);
+      } else {
+        child.score = minimax(b, depth + 1, false, alpha, beta, aiP, humanP, limit);
+        child.terminal = 'cap';
+      }
+      b[i] = '';
+      nodeRef.children.push(child);
+      const s = (child.score !== null) ? child.score : 0;
+      if (s > best) best = s;
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) { nodeRef.pruned_after = i; break; }
+    }
+    nodeRef.score = best; return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      const child = { move: i, player: humanP, board: null, score: null, terminal: null, pruned: false, children: null };
+      b[i] = humanP;
+      child.board = [...b];
+      if (depth < VIZ_DEPTH_CAP) {
+        minimaxTrace(b, depth + 1, true, alpha, beta, aiP, humanP, limit, child);
+      } else {
+        child.score = minimax(b, depth + 1, true, alpha, beta, aiP, humanP, limit);
+        child.terminal = 'cap';
+      }
+      b[i] = '';
+      nodeRef.children.push(child);
+      const s = (child.score !== null) ? child.score : 0;
+      if (s < best) best = s;
+      beta = Math.min(beta, best);
+      if (beta <= alpha) { nodeRef.pruned_after = i; break; }
+    }
+    nodeRef.score = best; return best;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   getBestMove — two separate passes:
+   Pass 1: real minimax() → selects bestIdx (unchanged)
+   Pass 2: minimaxTrace() → builds treeData for viz only
+═══════════════════════════════════════════════════ */
+function getBestMove(aiPlayer, humanPlayer) {
+  let bestScore = -Infinity, bestIdx = -1;
+  const scoreMap = {};
+  const limit = DEPTH_LIMIT[difficulty];
+
+  // ── Pass 1: real minimax, drives gameplay ──
+  for (let i = 0; i < 9; i++) {
+    if (board[i]) continue;
+    board[i] = aiPlayer;
+    const s = minimax(board, 0, false, -Infinity, Infinity, aiPlayer, humanPlayer, limit);
+    board[i] = '';
+    scoreMap[i] = s;
+    if (s > bestScore) { bestScore = s; bestIdx = i; }
+  }
+
+  // ── Pass 2: trace for viz (capped depth, won't affect bestIdx) ──
+  const treeData = [];
+  let totalNodes = 0, totalPruned = 0, maxDepthSeen = 0;
+
+  for (let i = 0; i < 9; i++) {
+    if (board[i]) continue;
+    const rootNode = { move: i, player: aiPlayer, board: null, score: null, terminal: null, pruned: false, children: null };
+    board[i] = aiPlayer;
+    rootNode.board = [...board];
+    minimaxTrace(board, 0, false, -Infinity, Infinity, aiPlayer, humanPlayer, limit, rootNode);
+    board[i] = '';
+    rootNode.score = scoreMap[i]; // override with real score
+    rootNode.isBest = (i === bestIdx);
+
+    function countNodes(n, d) {
+      totalNodes++;
+      if (d > maxDepthSeen) maxDepthSeen = d;
+      if (n.pruned_after !== undefined) totalPruned++;
+      if (n.children) n.children.forEach(c => countNodes(c, d + 1));
+    }
+    countNodes(rootNode, 0);
+    treeData.push(rootNode);
+  }
+
+  treeData.sort((a, b2) => b2.score - a.score);
+  return { bestIdx, scoreMap, treeData, stats: { totalNodes, totalPruned, maxDepthSeen, bestScore } };
+}
+
+/* ═══════════════════════════════════════════════════
+   AI DISPATCHER
+═══════════════════════════════════════════════════ */
+function doAiMove() {
+  if (gameOver) return;
+  const aiPlayer = playerSide === 'X' ? 'O' : 'X';
+  const humanPlayer = playerSide;
+
+  if (Math.random() < RAND_CHANCE[difficulty]) {
+    const empties = board.map((v,i) => v ? null : i).filter(v => v !== null);
+    const idx = empties[Math.floor(Math.random() * empties.length)];
+    SFX.clickO();
+    document.getElementById('board').classList.remove('ai-thinking');
+    renderTreeEmpty('Random move (difficulty mode)');
+    placeMove(idx, aiPlayer);
+    if (!gameOver) setTimeout(updateEngineAnalysis, 50);
+    return;
+  }
+
+  const { bestIdx, scoreMap, treeData, stats } = getBestMove(aiPlayer, humanPlayer);
+  document.getElementById('board').classList.remove('ai-thinking');
+  if (showHints) renderHints(scoreMap);
+  if (showBestMove) highlightBestCell(bestIdx);
+  renderTree(treeData, stats, aiPlayer);
+  SFX.clickO();
+  setTimeout(() => { 
+    clearBestHighlight(); 
+    placeMove(bestIdx, aiPlayer); 
+    if (!gameOver) setTimeout(updateEngineAnalysis, 50);
+  }, showBestMove ? 350 : 0);
+}
+
+/* ═══════════════════════════════════════════════════
+   HINTS & BEST MOVE DISPLAY
+═══════════════════════════════════════════════════ */
+function renderHints(scoreMap) {
+  document.getElementById('board').classList.add('show-hints');
+  for (let i = 0; i < 9; i++) {
+    if (board[i] !== '') continue;
+    const el = document.getElementById(`hint-${i}`);
+    if (el && scoreMap[i] !== undefined) {
+      const s = scoreMap[i];
+      el.textContent = s > 0 ? `+${s}` : `${s}`;
+      el.style.color = s > 0 ? 'var(--o-hue)' : s < 0 ? 'var(--x-hue)' : 'var(--text-3)';
+    }
+  }
+}
+function clearHintDisplay() {
+  for (let i = 0; i < 9; i++) {
+    const el = document.getElementById(`hint-${i}`);
+    if (el) { el.textContent = ''; el.style.color = ''; }
+  }
+}
+function highlightBestCell(idx) {
+  const c = document.querySelector(`.cell[data-idx="${idx}"]`);
+  if (c) c.classList.add('best-move');
+}
+function clearBestHighlight() {
+  document.querySelectorAll('.cell.best-move').forEach(c => c.classList.remove('best-move'));
+}
+
+/* ═══════════════════════════════════════════════════
+   WIN CHECK
+═══════════════════════════════════════════════════ */
+function checkWinner(b) {
+  for (const [a, c, d] of WIN_LINES) {
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+  }
+  return null;
+}
+function getWinLine(b) {
+  for (const line of WIN_LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return line;
+  }
+  return null;
+}
+function clearAllWinCells() {
+  document.querySelectorAll('.cell.win-cell').forEach(c => c.classList.remove('win-cell'));
+}
+
+/* ═══════════════════════════════════════════════════
+   END GAME
+═══════════════════════════════════════════════════ */
+function endGame(result) {
+  gameOver = true;
+  document.getElementById('board').classList.add('game-ended');
+  updateUndoBtn(); clearHintDisplay(); clearBestHighlight();
+  if (result === 'D') {
+    SFX.draw(); scores.D++; animateScore('d'); setStatus('draw');
+    setTimeout(() => showResultModal('D'), 800);
+  } else {
+    SFX.win();
+    const line = getWinLine(board);
+    line.forEach((i, t) => setTimeout(() => {
+      document.querySelector(`.cell[data-idx="${i}"]`).classList.add('win-cell');
+    }, t * 100));
+    scores[result]++; animateScore(result.toLowerCase());
+    setStatus(result === 'X' ? 'x-win' : 'o-win', result);
+    setTimeout(() => showResultModal(result), 900);
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   STATUS
+═══════════════════════════════════════════════════ */
+function setStatus(state, winner) {
+  const pill = document.getElementById('status-pill');
+  pill.className = 'status-pill';
+  const existingLoader = pill.querySelector('.ai-dots');
+  if (existingLoader) existingLoader.remove();
+  let dot = pill.querySelector('.status-dot');
+  if (!dot) { dot = document.createElement('span'); dot.className = 'status-dot'; pill.insertBefore(dot, pill.firstChild); }
+  dot.style.display = 'block';
+  const textEl = document.getElementById('status-text');
+  if (state === 'draw') {
+    pill.classList.add('draw-state'); dot.style.display = 'none'; textEl.textContent = "It's a draw";
+  } else if (state === 'x-win' || state === 'o-win') {
+    pill.classList.add('win-state'); dot.style.display = 'none';
+    const isHuman = winner === playerSide;
+    textEl.textContent = gameMode === 'pva' ? (isHuman ? 'You win! 🎉' : 'AI wins') : `${winner} wins!`;
+  } else {
+    pill.classList.add(currentPlayer === 'X' ? 'x-turn' : 'o-turn');
+    textEl.textContent = gameMode === 'pva' ? (currentPlayer === playerSide ? 'Your turn' : '') : `${currentPlayer}'s turn`;
+  }
+}
+function setAiStatus() {
+  const pill = document.getElementById('status-pill');
+  pill.className = 'status-pill o-turn';
+  const dot = pill.querySelector('.status-dot');
+  if (dot) dot.style.display = 'none';
+  let loader = pill.querySelector('.ai-dots');
+  if (!loader) {
+    loader = document.createElement('div'); loader.className = 'ai-dots';
+    loader.innerHTML = '<span></span><span></span><span></span>';
+    pill.insertBefore(loader, pill.firstChild);
+  }
+  document.getElementById('status-text').textContent = 'AI thinking';
+}
+
+/* ═══════════════════════════════════════════════════
+   SCORE ACTIVE STATE
+═══════════════════════════════════════════════════ */
+function updateScoreActiveState() {
+  if (gameOver) {
+    document.getElementById('player-x-info').classList.remove('active');
+    document.getElementById('player-o-info').classList.remove('active');
+    return;
+  }
+  document.getElementById('player-x-info').classList.toggle('active', currentPlayer === 'X');
+  document.getElementById('player-o-info').classList.toggle('active', currentPlayer === 'O');
+}
+function animateScore(key) {
+  const id = key === 'd' ? 'score-d' : `score-${key}`;
+  const el = document.getElementById(id);
+  el.textContent = key === 'd' ? scores.D : scores[key.toUpperCase()];
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+}
+
+/* ═══════════════════════════════════════════════════
+   MODALS
+═══════════════════════════════════════════════════ */
+function showResultModal(result) {
+  const m = document.getElementById('result-modal');
+  const emoji = document.getElementById('m-emoji');
+  const title = document.getElementById('m-title');
+  const sub   = document.getElementById('m-sub');
+  title.className = 'modal-title';
+  if (result === 'D') {
+    emoji.textContent = '🤝'; title.textContent = "It's a Draw"; title.classList.add('draw');
+    sub.textContent = 'A perfectly balanced game. Play again?';
+  } else {
+    const isHuman = result === playerSide && gameMode === 'pva';
+    emoji.textContent = isHuman ? '🎉' : (gameMode === 'pvp' ? '🏆' : '🤖');
+    title.textContent = gameMode === 'pva' ? (isHuman ? 'You Win!' : 'AI Wins') : `${result} Wins!`;
+    title.classList.add(isHuman ? 'win' : (result === 'X' ? 'x-win' : 'o-win'));
+    sub.textContent = isHuman ? 'Great move! Ready for another?' :
+                      gameMode === 'pvp' ? 'Well played. Another round?' : "The AI got you. Try again?";
+  }
+  m.classList.add('show');
+}
+function closeResultModal() { document.getElementById('result-modal').classList.remove('show'); }
+function confirmRestart() {
+  const hasProgress = board.some(Boolean) && !gameOver;
+  if (!hasProgress) { startGame(); return; }
+  document.getElementById('restart-modal').classList.add('show');
+}
+function confirmResetScores() { document.getElementById('reset-modal').classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function resetScores() {
+  scores = { X: 0, O: 0, D: 0 };
+  document.getElementById('score-x').textContent = '0';
+  document.getElementById('score-o').textContent = '0';
+  document.getElementById('score-d').textContent = '0';
+}
+document.querySelectorAll('.modal-backdrop').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+});
+
+/* ═══════════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════════ */
+function toggleSettings() {
+  settingsOpen = !settingsOpen;
+  document.getElementById('settings-body').classList.toggle('open', settingsOpen);
+  document.getElementById('chevron').classList.toggle('open', settingsOpen);
+  document.getElementById('settings-trigger').setAttribute('aria-expanded', settingsOpen);
+}
+function setMode(m) {
+  gameMode = m;
+  document.getElementById('pill-pva').classList.toggle('active', m === 'pva');
+  document.getElementById('pill-pvp').classList.toggle('active', m === 'pvp');
+  const hidden = m === 'pvp';
+  document.getElementById('diff-section').style.display = hidden ? 'none' : '';
+  document.getElementById('side-section').style.display = hidden ? 'none' : '';
+  updateLabels(); startGame();
+}
+function setDiff(d) {
+  difficulty = d;
+  ['hard','medium','easy'].forEach(k => document.getElementById(`pill-${k}`).classList.toggle('active', k === d));
+  startGame();
+}
+function setPlayerSide(s) {
+  playerSide = s;
+  document.getElementById('pill-px').classList.toggle('active', s === 'X');
+  document.getElementById('pill-po').classList.toggle('active', s === 'O');
+  updateLabels(); startGame();
+}
+function updateLabels() {
+  if (gameMode === 'pvp') {
+    document.getElementById('x-name').textContent = 'X';
+    document.getElementById('o-name').textContent = 'O';
+    document.querySelector('#player-x-info .score-who').textContent = 'Player 1';
+    document.querySelector('#player-o-info .score-who').textContent = 'Player 2';
+  } else {
+    document.getElementById('x-name').textContent = 'X';
+    document.getElementById('o-name').textContent = 'O';
+    document.querySelector('#player-x-info .score-who').textContent = playerSide === 'X' ? 'You' : 'AI';
+    document.querySelector('#player-o-info .score-who').textContent = playerSide === 'O' ? 'You' : 'AI';
+  }
+}
+function toggleHints() {
+  showHints = !showHints;
+  document.getElementById('sw-hints').classList.toggle('on', showHints);
+  syncHints();
+}
+function syncHints() { document.getElementById('board').classList.toggle('show-hints', showHints); }
+function toggleBestMove() {
+  showBestMove = !showBestMove;
+  document.getElementById('sw-bestmove').classList.toggle('on', showBestMove);
+}
+function toggleSound() {
+  sfxOn = !sfxOn;
+  document.getElementById('sw-sound').classList.toggle('on', sfxOn);
+  if (sfxOn && !audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+/* ═══════════════════════════════════════════════════
+   THEME
+═══════════════════════════════════════════════════ */
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const svg = document.getElementById('theme-svg');
+  svg.innerHTML = isDark
+    ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="0"/><line x1="12" y1="22" x2="12" y2="24"/><line x1="4.22" y1="4.22" x2="2.81" y2="2.81"/><line x1="19.78" y1="19.78" x2="21.19" y2="21.19"/><line x1="2" y1="12" x2="0" y2="12"/><line x1="22" y1="12" x2="24" y2="12"/><line x1="4.22" y1="19.78" x2="2.81" y2="21.19"/><line x1="19.78" y1="4.22" x2="21.19" y2="2.81"/>'
+    : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+  document.documentElement.setAttribute('data-theme', 'light');
+  document.getElementById('theme-svg').innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="0"/><line x1="12" y1="22" x2="12" y2="24"/><line x1="4.22" y1="4.22" x2="2.81" y2="2.81"/><line x1="19.78" y1="19.78" x2="21.19" y2="21.19"/><line x1="2" y1="12" x2="0" y2="12"/><line x1="22" y1="12" x2="24" y2="12"/><line x1="4.22" y1="19.78" x2="2.81" y2="21.19"/><line x1="19.78" y1="4.22" x2="21.19" y2="2.81"/>';
+}
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR TOGGLE
+═══════════════════════════════════════════════════ */
+function toggleTreeSidebar() {
+  treeSidebarOpen = !treeSidebarOpen;
+  document.getElementById('tree-sidebar').classList.toggle('visible', treeSidebarOpen);
+  document.getElementById('tree-toggle-btn').classList.toggle('tree-active', treeSidebarOpen);
+}
+
+/* ═══════════════════════════════════════════════════
+   TREE PANEL STATE
+═══════════════════════════════════════════════════ */
+function resetTreePanel() {
+  document.getElementById('tree-empty').style.display = '';
+  document.getElementById('tree-empty').querySelector('.tree-empty-text').textContent =
+    'The Minimax decision tree appears here when the AI calculates its move.';
+  document.getElementById('tree-root-list').style.display = 'none';
+  document.getElementById('tree-root-list').innerHTML = '';
+  document.getElementById('tree-stats').classList.remove('show');
+  document.getElementById('tree-header-sub').textContent = 'Waiting for AI move…';
+}
+
+function renderTreeEmpty(msg) {
+  document.getElementById('tree-empty').style.display = '';
+  document.getElementById('tree-empty').querySelector('.tree-empty-text').textContent = msg;
+  document.getElementById('tree-root-list').style.display = 'none';
+  document.getElementById('tree-stats').classList.remove('show');
+  document.getElementById('tree-header-sub').textContent = 'Random move — no tree';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FIX 3 — REAL HIERARCHICAL TREE RENDERING
+   Uses recursion to build a proper indented tree with connector lines.
+   Completely separate from game logic — only reads treeData.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Score → CSS class helpers */
+function scoreClass(s) {
+  if (s === null || s === undefined) return '';
+  if (Math.abs(s) >= 7) return 'win';
+  if (s > 0) return 'pos';
+  if (s < 0) return 'neg';
+  return '';
+}
+function fmtScore(s) {
+  if (s === null || s === undefined) return '?';
+  return s > 0 ? `+${s}` : `${s}`;
+}
+
+/* Build a tiny board thumbnail */
+function buildNodeMiniBoard(boardArr, highlightIdx) {
+  const mb = document.createElement('div');
+  mb.className = 'node-mini-board';
+  for (let i = 0; i < 9; i++) {
+    const mc = document.createElement('div');
+    mc.className = 'node-mini-cell';
+    const v = boardArr[i];
+    if (v) { mc.classList.add(v.toLowerCase()); mc.textContent = v; }
+    if (i === highlightIdx) mc.classList.add('hl');
+    mb.appendChild(mc);
+  }
+  return mb;
+}
+
+/* Row/col label */
+function cellLabel(idx) {
+  return `R${Math.floor(idx/3)+1}C${(idx%3)+1}`;
+}
+
+/*
+  buildTreeNode — recursive, builds org-chart layout
+*/
+function buildTreeNode(node, depth, isBestPath) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tree-child-wrap';
+
+  // The node itself
+  const nodeBox = document.createElement('div');
+  const isMax = depth % 2 === 0; 
+  nodeBox.className = `tree-node-box ${node.isBest ? 'is-best' : ''} ${isMax ? 'max-node' : 'min-node'}`;
+
+  // Mini board
+  if (node.board) {
+    nodeBox.appendChild(buildNodeMiniBoard(node.board, node.move));
+  }
+
+  // Score
+  const scoreBox = document.createElement('div');
+  scoreBox.className = `node-score-box ${scoreClass(node.score)}`;
+  scoreBox.textContent = fmtScore(node.score);
+  
+  if (node.terminal && node.terminal !== 'cap') {
+     const tChip = document.createElement('div');
+     tChip.style.fontSize = '9px';
+     tChip.style.color = 'var(--text-3)';
+     tChip.style.marginTop = '2px';
+     tChip.textContent = node.terminal;
+     scoreBox.appendChild(tChip);
+  }
+  nodeBox.appendChild(scoreBox);
+  wrapper.appendChild(nodeBox);
+
+  // Children
+  const hasChildren = node.children && node.children.length > 0;
+  if (hasChildren) {
+    const childrenWrap = document.createElement('div');
+    childrenWrap.className = 'tree-children';
+    node.children.forEach(child => {
+      childrenWrap.appendChild(buildTreeNode(child, depth + 1, child.isBest));
+    });
+    
+    // Alpha-beta prune indicator
+    if (node.pruned_after !== undefined) {
+      const pruneWrap = document.createElement('div');
+      pruneWrap.className = 'tree-child-wrap tree-pruned-node';
+      const pruneBox = document.createElement('div');
+      pruneBox.className = `tree-node-box ${!isMax ? 'max-node' : 'min-node'}`;
+      const pSc = document.createElement('div');
+      pSc.className = 'node-score-box';
+      pSc.textContent = 'α-β pruned';
+      pSc.style.fontSize = '9px';
+      pruneBox.appendChild(pSc);
+      pruneWrap.appendChild(pruneBox);
+      childrenWrap.appendChild(pruneWrap);
+    }
+    
+    wrapper.appendChild(childrenWrap);
+  }
+
+  return wrapper;
+}
+
+/* Main render function — called after AI computes */
+function renderTree(treeData, stats, aiPlayer) {
+  if (!treeData || treeData.length === 0) return;
+
+  const moveNum = board.filter(Boolean).length + 1;
+  document.getElementById('tree-header-sub').textContent =
+    `Move #${moveNum} · ${treeData.length} candidates · depth ≤ ${VIZ_DEPTH_CAP}`;
+
+  // Stats
+  document.getElementById('tstat-nodes').textContent = stats.totalNodes;
+  document.getElementById('tstat-depth').textContent = stats.maxDepthSeen;
+  document.getElementById('tstat-pruned').textContent = stats.totalPruned;
+  document.getElementById('tstat-best').textContent = fmtScore(stats.bestScore);
+  document.getElementById('tree-stats').classList.add('show');
+
+  document.getElementById('tree-empty').style.display = 'none';
+  const list = document.getElementById('tree-root-list');
+  list.style.display = 'flex';
+  list.innerHTML = '';
+
+  // Create super-root (depth 0, max node)
+  const superRoot = {
+     board: [...board],
+     move: -1,
+     score: stats.bestScore,
+     isBest: true,
+     children: treeData
+  };
+
+  list.appendChild(buildTreeNode(superRoot, 0, true));
+
+  // center the scroll
+  setTimeout(() => {
+    const scrollObj = document.getElementById('tree-scroll');
+    scrollObj.scrollLeft = (scrollObj.scrollWidth - scrollObj.clientWidth) / 2;
+    scrollObj.scrollTop = 0;
+  }, 10);
+}
+
+/* ═══════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════ */
+startGame();
+</script>
+</body>
+</html>
